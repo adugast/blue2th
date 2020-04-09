@@ -37,7 +37,7 @@ static struct hci_dev_list_req *__get_bluetooth_device_list(int bluetooth_fd)
 }
 
 
-static int b2th_device_add_node(b2th_device_t *bd, const char *name, const char *address)
+static int b2th_device_add_node(b2th_device_t *bd, const char *address, const char *name)
 {
     b2th_device_t *bd_new = calloc(1, sizeof(b2th_device_t));
     if (!bd)
@@ -122,13 +122,12 @@ static b2th_device_t *__b2th_get_device(enum b2th_field_e field)
         char addr[18];
         ba2str(&di.bdaddr, addr);
 
+        b2th_device_add_node(bd, addr, di.name);
+
         if (field == FIRST) {
-            bd->address = strdup(addr);
-            bd->name = strdup(di.name);
+            bd = list_entry(bd->node.next, b2th_device_t, node);
             break;
         }
-
-        b2th_device_add_node(bd, di.name, addr);
     }
 
     close(bluetooth_fd);
@@ -237,6 +236,9 @@ b2th_device_t *b2th_device_scan(b2th_device_t *local_device, unsigned int secs)
 
 b2th_device_t *b2th_get_device_by_name(b2th_device_t *bd, const char *name)
 {
+    if (!name)
+        return NULL;
+
     b2th_device_t *pos;
     b2th_device_for_each_entry(bd, pos)
         if (strncmp(pos->name, name, strlen(pos->name)) == 0)
@@ -248,6 +250,9 @@ b2th_device_t *b2th_get_device_by_name(b2th_device_t *bd, const char *name)
 
 b2th_device_t *b2th_get_device_by_addr(b2th_device_t *bd, const char *addr)
 {
+    if (!addr)
+        return NULL;
+
     b2th_device_t *pos;
     b2th_device_for_each_entry(bd, pos)
         if (strncmp(pos->address, addr, strlen(pos->address)) == 0)
@@ -262,9 +267,8 @@ size_t b2th_device_size(b2th_device_t *bd)
     return list_length(&(bd->node));
 }
 
-
 /*
-int b2th_write()
+int b2th_device_write()
 {
     struct sockaddr_rc addr = { 0 };
     int s, status, len=0;

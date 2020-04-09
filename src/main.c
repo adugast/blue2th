@@ -26,6 +26,17 @@ int main()
     b2th_device_for_each_entry(remote_device, pos)
         printf("[%s][%s]\n", pos->address, pos->name);
 
+    const char *bt_iface_test = "SelDeGuérandeAOC";
+    b2th_device_t *bt = b2th_get_device_by_name(remote_device, bt_iface_test);
+    if (!bt) {
+        printf("Bluetooth iface [%s] not found.\n", bt_iface_test);
+        b2th_device_deinit(local_device);
+        b2th_device_deinit(remote_device);
+        return -1;
+    }
+
+    printf("\nBluetooth iface %s found on %s.\n\n", bt->name, bt->address);
+
     b2th_device_deinit(local_device);
     b2th_device_deinit(remote_device);
 
