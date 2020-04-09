@@ -13,6 +13,137 @@
 #include "blue2th.h"
 
 
+static struct hci_dev_list_req *__get_bluetooth_device_list(int bluetooth_fd)
+{
+    // Allocate memory for the devices list + the maximum HCI_MAX_DEV devices
+    struct hci_dev_list_req *hdlr = calloc(1, sizeof(struct hci_dev_list_req)
+            + HCI_MAX_DEV * sizeof(struct hci_dev_req));
+    if (!hdlr) {
+        perror("Failed allocate HCI device request memory");
+        return NULL;
+    }
+
+    // Fill HCI_MAX_DEV in dev_num to prepare the ioctl request
+    hdlr->dev_num = HCI_MAX_DEV;
+
+    // Retrieve every bluetooth controller available
+    if (ioctl(bluetooth_fd, HCIGETDEVLIST, hdlr) == -1) {
+        perror("Failed to get HCI device list");
+        free(hdlr);
+        return NULL;
+    }
+
+    return hdlr;
+}
+
+
+static int b2th_device_add_node(b2th_device_t *bd, const char *name, const char *address)
+{
+    b2th_device_t *bd_new = calloc(1, sizeof(b2th_device_t));
+    if (!bd)
+        return -1;
+
+    bd_new->address = strdup(address);
+    bd_new->name = strdup(name);
+
+    list_add_tail(&(bd_new->node), &(bd->node));
+
+    return 0;
+}
+
+
+b2th_device_t *b2th_device_init()
+{
+    b2th_device_t *bd = calloc(1, sizeof(b2th_device_t));
+    if (!bd)
+        return NULL;
+
+    bd->address = NULL;
+    bd->name = NULL;
+
+    init_list(&(bd->node));
+
+    return bd;
+}
+
+
+void b2th_device_deinit(b2th_device_t *bd)
+{
+    b2th_device_t *pos, *save;
+    b2th_device_for_each_entry_safe(bd, pos, save) {
+        list_del(&(pos->node));
+        free(pos->address);
+        free(pos->name);
+        free(pos);
+    }
+
+    free(bd);
+}
+
+
+enum b2th_field_e {
+    FIRST,
+    LIST
+};
+
+
+static b2th_device_t *__b2th_get_device(enum b2th_field_e field)
+{
+    b2th_device_t *bd = b2th_device_init();
+    if (!bd)
+        return NULL;
+
+    int bluetooth_fd = socket(AF_BLUETOOTH, SOCK_RAW, BTPROTO_HCI);
+    if (bluetooth_fd == -1) {
+        perror("Failed to open raw HCI socket");
+        free(bd);
+        return NULL;
+    }
+
+    struct hci_dev_list_req *hdlr = __get_bluetooth_device_list(bluetooth_fd);
+    if (!hdlr) {
+        free(bd);
+        close(bluetooth_fd);
+        return NULL;
+    }
+
+    int i;
+    for (i = 0; i < hdlr->dev_num; i++) {
+
+        struct hci_dev_info di = {
+            .dev_id = (hdlr->dev_req + i)->dev_id
+        };
+
+        if (ioctl(bluetooth_fd, HCIGETDEVINFO, &di) == -1)
+            continue;
+
+        char addr[18];
+        ba2str(&di.bdaddr, addr);
+
+        b2th_device_add_node(bd, di.name, addr);
+        if (field == FIRST)
+            break;
+    }
+
+    close(bluetooth_fd);
+    free(hdlr);
+
+    return bd;
+}
+
+
+b2th_device_t *b2th_local_device_get_first()
+{
+    return __b2th_get_device(FIRST);
+}
+
+
+b2th_device_t *b2th_local_device_get_list()
+{
+    return __b2th_get_device(LIST);
+}
+
+
 struct b2th_inquiry {
     int dev_id;
     int max_rsp;
@@ -21,42 +152,11 @@ struct b2th_inquiry {
 };
 
 
-static int b2th_add_node(b2th_t *root, const char *addr, const char *name)
+static int b2th_scan_device_id(b2th_device_t *remote_device, struct b2th_inquiry *bi)
 {
-    b2th_node_t *b = calloc(1, sizeof(b2th_node_t));
-    if (!b)
-        return -1;
-
-    b->addr = strdup(addr);
-    b->name = strdup(name);
-
-    list_add_tail(&(b->node), &(root->list_head));
-
-    return 0;
-}
-
-
-static int b2th_get_dev_id(const char *interface)
-{
-    int dev_id = -1;
-
-    if (interface == NULL)
-        dev_id = hci_get_route(NULL); // Passing NULL argument will retrieve the id of first avalaible bluetooth interface
-    else
-        dev_id = hci_devid(interface);
-
-    return dev_id;
-}
-
-
-static int b2th_scan_device_id(b2th_t *bt, struct b2th_inquiry *bi)
-{
-    inquiry_info *ii = calloc(bi->max_rsp, sizeof(inquiry_info));
-    if (ii == NULL)
-        return -1;
-
+    inquiry_info *ii = NULL;
     int num_rsp = hci_inquiry(bi->dev_id, bi->secs, bi->max_rsp, NULL, &ii, bi->flags);
-    if (num_rsp <= 0) {
+    if (num_rsp < 0) {
         perror("hci_inquiry");
         free(ii);
         return -1;
@@ -75,65 +175,41 @@ static int b2th_scan_device_id(b2th_t *bt, struct b2th_inquiry *bi)
         if (hci_read_remote_name(sock, &(ii+i)->bdaddr, sizeof(name), name, 0) < 0)
             strncpy(name, "unknown", sizeof(name) - 1);
 
-        b2th_add_node(bt, addr, name);
+        b2th_device_add_node(remote_device, addr, name);
     }
 
     hci_close_dev(sock);
 
     free(ii);
 
-    bt->nb_device = list_length(&(bt->list_head));
-
     return 0;
 }
 
 
-b2th_t *b2th_init(const char *interface)
+static int b2th_get_dev_id(const char *interface)
 {
-    b2th_t *bt = calloc(1, sizeof(b2th_t));
-    if (!bt)
-        return NULL;
+    int dev_id = -1;
 
-    if (interface)
-        bt->interface = strdup(interface);
+    if (interface == NULL)
+        dev_id = hci_get_route(NULL); // Passing NULL argument will retrieve the id of first avalaible bluetooth interface
+    else
+        dev_id = hci_devid(interface);
 
-    init_list(&(bt->list_head));
-
-    return bt;
+    return dev_id;
 }
 
 
-void b2th_deinit(b2th_t *bt)
+b2th_device_t *b2th_device_scan(b2th_device_t *local_device, unsigned int secs)
 {
-    if (!bt)
-        return;
-
-    b2th_node_t *pos, *save;
-    b2th_list_for_each_entry_safe(bt, pos, save) {
-        list_del(&(pos->node));
-        free(pos->addr);
-        free(pos->name);
-        free(pos);
-    }
-
-    if (bt->interface)
-        free(bt->interface);
-
-    free(bt);
-}
-
-
-int b2th_scan(b2th_t *bt, unsigned int secs)
-{
-    if (bt == NULL) {
+    if (local_device == NULL) {
         printf("Bluetooth object not initialized\n");
-        return -1;
+        return NULL;
     }
 
-    int dev_id = b2th_get_dev_id(bt->interface);
+    int dev_id = b2th_get_dev_id(local_device->address);
     if (dev_id < 0) {
         printf("Couldn't retrieve bluetooth interface\n");
-        return -1;
+        return NULL;
     }
 
     struct b2th_inquiry bi = {
@@ -143,16 +219,20 @@ int b2th_scan(b2th_t *bt, unsigned int secs)
         .flags = IREQ_CACHE_FLUSH,
     };
 
-    b2th_scan_device_id(bt, &bi);
+    b2th_device_t *remote_device = b2th_device_init();
+    if (!remote_device)
+        return NULL;
 
-    return 0;
+    b2th_scan_device_id(remote_device, &bi);
+
+    return remote_device;
 }
 
 
-b2th_node_t *b2th_get_device_by_name(b2th_t *bt, const char *name)
+b2th_device_t *b2th_get_device_by_name(b2th_device_t *bd, const char *name)
 {
-    b2th_node_t *pos;
-    b2th_list_for_each_entry(bt, pos)
+    b2th_device_t *pos;
+    b2th_device_for_each_entry(bd, pos)
         if (strncmp(pos->name, name, strlen(pos->name)) == 0)
             return pos;
 
@@ -160,39 +240,24 @@ b2th_node_t *b2th_get_device_by_name(b2th_t *bt, const char *name)
 }
 
 
-b2th_node_t *b2th_get_device_by_addr(b2th_t *bt, const char *addr)
+b2th_device_t *b2th_get_device_by_addr(b2th_device_t *bd, const char *addr)
 {
-    b2th_node_t *pos;
-    b2th_list_for_each_entry(bt, pos)
-        if (strncmp(pos->addr, addr, strlen(pos->addr)) == 0)
+    b2th_device_t *pos;
+    b2th_device_for_each_entry(bd, pos)
+        if (strncmp(pos->address, addr, strlen(pos->address)) == 0)
             return pos;
 
     return NULL;
 }
 
 
-int b2th_get_local_device_addr(int dev_id)
+size_t b2th_device_size(b2th_device_t *bd)
 {
-    int sock = socket(AF_BLUETOOTH, SOCK_RAW|SOCK_CLOEXEC, BTPROTO_HCI);
-    if (sock == -1) {
-        perror("socket()");
-        return -1;
-    }
-
-    struct hci_dev_info di = { .dev_id = dev_id };
-    char addr[18];
-
-    if (ioctl(sock, HCIGETDEVINFO, (void *) &di))
-        return 0;
-
-    ba2str(&di.bdaddr, addr);
-
-    printf("\t%s\t%s\n", di.name, addr);
-
-    return 0;
+    return list_length(&(bd->node));
 }
 
 
+/*
 int b2th_write()
 {
     struct sockaddr_rc addr = { 0 };
@@ -230,3 +295,5 @@ int b2th_write()
     close(s);
     return 0;
 }
+*/
+
