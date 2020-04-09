@@ -38,9 +38,12 @@ Launch blue2th:
 $>./blue2th
 ```
 
-## More info:
+## References:
 
+* [Bluetooth programming](http://people.csail.mit.edu/albert/bluez-intro/) - An Introduction to Bluetooth Programming
 * [hcitool](https://github.com/pauloborges/bluez/blob/master/tools/hcitool.c) - hcitool source code
+* [cltest](https://github.com/pauloborges/bluez/blob/master/tools/cltest.c) - Code example
+* [bluez programming](http://docs.cubieboard.org/tutorials/common/development/bluez_programming) - Bluetooth C Programming Quick Start
 
 ## License
 
