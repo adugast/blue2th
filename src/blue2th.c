@@ -77,6 +77,8 @@ void b2th_device_deinit(b2th_device_t *bd)
         free(pos);
     }
 
+    free(bd->address);
+    free(bd->name);
     free(bd);
 }
 
@@ -120,9 +122,13 @@ static b2th_device_t *__b2th_get_device(enum b2th_field_e field)
         char addr[18];
         ba2str(&di.bdaddr, addr);
 
-        b2th_device_add_node(bd, di.name, addr);
-        if (field == FIRST)
+        if (field == FIRST) {
+            bd->address = strdup(addr);
+            bd->name = strdup(di.name);
             break;
+        }
+
+        b2th_device_add_node(bd, di.name, addr);
     }
 
     close(bluetooth_fd);
