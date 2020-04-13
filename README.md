@@ -65,9 +65,11 @@ Bluetooth iface [SelDeGuérandeAOC] not found.
 
 * [Bluetooth programming](http://people.csail.mit.edu/albert/bluez-intro/) - An Introduction to Bluetooth Programming by Albert Huang (2005-2008)
 * [Bluetooth for Programmers](http://people.csail.mit.edu/rudolph/Teaching/Articles/BTBook.pdf) - Bluetooth book by Albert Huang and Larry Rudolph (2005)
+* [Basic of bluetooth](https://opensourceforu.com/2015/06/linux-without-wires-the-basics-of-bluetooth/) - Linux without wires the basics of bluetooth
 * [hcitool](https://github.com/pauloborges/bluez/blob/master/tools/hcitool.c) - hcitool source code
 * [cltest](https://github.com/pauloborges/bluez/blob/master/tools/cltest.c) - Code example
 * [bluez programming](http://docs.cubieboard.org/tutorials/common/development/bluez_programming) - Bluetooth C Programming Quick Start
+* [Libblueman](https://github.com/blueman-project/blueman/blob/master/module/libblueman.c) - Libblueman
 
 ## License
 
