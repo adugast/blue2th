@@ -10,10 +10,20 @@ extern "C" {
 #include "list.h"
 
 
+/*!
+ * \file blue2th.h
+ *
+ * \brief blue2th api definition
+ */
+
+
+/*!
+ * \brief blue2th device object
+ */
 typedef struct {
-    char *address;          /*<! bluetooth 48-bit device address */
-    char *name;             /*<! bluetooth user friendly string name */
-    list_t node;            /*<! linked list node */
+    char *address;          /**<! bluetooth 48-bit device address */
+    char *name;             /**<! bluetooth user friendly string name */
+    list_t node;            /**<! linked list node */
 } b2th_device_t;
 
 
@@ -65,8 +75,8 @@ void b2th_device_deinit(b2th_device_t *bd);
 /*!
  * \brief b2th_device_scan - Launch a scan and return the list of b2th device found
  *
- * \param[in]   local   local b2th device handler.
- * \param[in]   secs    time in seconds that the bluetooth scan runs.
+ * \param[in]   local_device   local b2th device handler.
+ * \param[in]   secs           time in seconds that the bluetooth scan runs.
  *
  * \return  b2th_device_t list on success, NULL on error.
  */
@@ -92,7 +102,7 @@ b2th_device_t *b2th_get_device_by_name(b2th_device_t *bd, const char *name);
  *
  * \return  b2th_device_t on success, NULL on error.
  */
-b2th_device_t *b2th_get_device_by_addr(b2th_device_t *bd, const char *addr);
+b2th_device_t *b2th_get_device_by_addr(b2th_device_t *bd, const char *address);
 
 
 /*!
