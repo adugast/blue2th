@@ -44,8 +44,8 @@ $>./blue2th
 
 ## Output:
 
-/!\ XX:XX:XX:XX:XX:XX represents bluetooth 48-bit device address
-/!\ xxxxxxxxxxxxxxxxx represents bluetooth user friendly string name
+/!\ XX:XX:XX:XX:XX:XX represents bluetooth 48-bit device address  
+/!\ xxxxxxxxxxxxxxxxx represents bluetooth user friendly string name  
 
 ```
 First local bluetooth controller:[hci0][XX:XX:XX:XX:XX:XX]
