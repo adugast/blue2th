@@ -107,9 +107,7 @@ void b2th_list_deinit(b2th_list_t *head)
     b2th_device_t *pos, *save;
     b2th_device_for_each_entry_safe(head, pos, save) {
         list_del(&(pos->node));
-        free(pos->address);
-        free(pos->name);
-        free(pos);
+        b2th_device_deinit(pos);
     }
 
     free(head);
